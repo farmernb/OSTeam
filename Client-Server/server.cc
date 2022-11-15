@@ -7,6 +7,8 @@
 #include <iostream>
 #include <string.h>
 #include <stdio.h>
+#include <pthread.h>
+#include <map>
 using namespace std;
 
 // Message record
@@ -14,7 +16,69 @@ struct message {
    int    ivalue;
    double dvalue;
    char   cvalue[56];
+   char   mname[21];
 };
+
+struct threadData {
+   int connection;
+   int index;
+};
+
+int connections[10];
+pthread_t ptid[10];
+map<int, int> pid;
+
+void postMessage(message outmessage)
+{
+   message byeMessage;
+   strcpy(byeMessage.mname, "Server");
+   // if(strcmp(outmessage.cvalue, "bye") == 0)
+   // {
+   //    char temp[56] = "Goodbye ";
+   //    strcat(temp, outmessage.mname);
+   //    strcat(temp, "!");
+
+   //    strcpy(byeMessage.cvalue, temp);
+   // }
+
+   for(int connection : connections)
+   {
+      if(connection != 0)
+      {
+         write(connection, (char *) &outmessage, sizeof(outmessage));
+         // if(strcmp(outmessage.cvalue, "bye") == 0){
+         //    write(connection, (char *) &byeMessage, sizeof(message));
+         // }
+      }
+   }
+}
+
+void* clientThread(void* arg)
+{
+   pthread_detach(pthread_self());
+   struct threadData *myData;
+   myData = (struct threadData *) arg;
+   message clientmessage;
+   pid[pthread_self()] = myData -> index;
+
+   for(;;)
+   {
+      read(connections[pid[pthread_self()]], (char*)&clientmessage, sizeof(message));
+         
+      postMessage(clientmessage);
+
+      if(strcmp(clientmessage.cvalue, "bye") == 0)
+      {
+         close(connections[pid[pthread_self()]]);
+         cout << "Removed client thread for connection: " << connections[pid[pthread_self()]] << endl;
+         connections[pid[pthread_self()]] = 0;
+         pid.erase(pthread_self());
+         break;
+      }
+   }
+   //pthread_exit(NULL);
+   return 0;
+}
 
 int main(int argc, char** argv )
 {
@@ -24,6 +88,8 @@ int main(int argc, char** argv )
    message mymessage;
    int connection;
    int value;
+   int threadIndex = 0;
+   threadData tInfo;
 
    // Create the socket with domain, type, protocol as
    //    internet, stream, default
@@ -80,7 +146,6 @@ int main(int argc, char** argv )
    // the for loop after one message.
    for(;;)
    {
-      cout << "Calling accept" << endl;
       // Accept a connect, check the returned descriptor
       connection = accept(sockdesc, NULL, NULL);
       if ( connection < 0 )
@@ -90,45 +155,33 @@ int main(int argc, char** argv )
       }
       else
       {
-	 // Here's where the fork( ) or pthread_create( ) call would
-	 // normally go, passing connection (returned by accept( )
-	 // above) as a parameter.  connection is a file descriptor
-	 // attached to a different port, so that the server can
-	 // continue to accept connections on the original port.
-	 //
-	 // Instead of all that, this program just does the
-	 // following:
-         // Read exactly one message
-	 // Note that the first parameter of read is the returned
-	 // value from accept( ) above.
-         value = read(connection, (char*)&mymessage, sizeof(message));
-	 cout << "value = " << value << endl;
-	 // Display the message
-	 cout << "Server received: " << endl;
-	 cout << "  ivalue: " << mymessage.ivalue << endl;
-	 cout << "  dvalue: " << mymessage.dvalue << endl;
-	 cout << "  cvalue: " << mymessage.cvalue << endl;
-	 // Create a response message
-	 mymessage.ivalue++;
-	 mymessage.dvalue += 1.0;
-	 strcpy( mymessage.cvalue, "Server response" );
-	 // Display the new message
-	 cout << "Server sends back: " << endl;
-	 cout << "  ivalue: " << mymessage.ivalue << endl;
-	 cout << "  dvalue: " << mymessage.dvalue << endl;
-	 cout << "  cvalue: " << mymessage.cvalue << endl;
-	 // Send the response string back to the client
-         write(connection, (char*)&mymessage, sizeof(message));
+         //finding an empty space in the connections array and pthread_t array
+         for(int i = 0; i < sizeof(connections); i++)
+         {
+            if(connections[i] == 0)
+            {
+               threadIndex = i;
+               break;
+            }
+         }
 
-	 // Then quit
-	 break;
+         tInfo.connection = connection;
+         tInfo.index = threadIndex;
+
+         if(pthread_create(&ptid[threadIndex], NULL, &clientThread, (void*)&tInfo))
+         {
+            cout << "Thread creation failed!" << endl;
+         }
+         connections[threadIndex] = connection;
+
+         cout << "Created client thread for connection: " << tInfo.connection << endl;
       }
 
    } // for
 
-   // Close the connection
-   close(connection);
+   cout << "Got here somehow" << endl;
    return 0;
 
 } // main( )
+
 
