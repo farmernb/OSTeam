@@ -32,23 +32,22 @@ void postMessage(message outmessage)
 {
    message byeMessage;
    strcpy(byeMessage.mname, "Server");
-   // if(strcmp(outmessage.cvalue, "bye") == 0)
-   // {
-   //    char temp[56] = "Goodbye ";
-   //    strcat(temp, outmessage.mname);
-   //    strcat(temp, "!");
-
-   //    strcpy(byeMessage.cvalue, temp);
-   // }
+   if(strcmp(outmessage.cvalue, "bye") == 0)
+   {
+       char temp[56] = "Goodbye ";
+       strcat(temp, outmessage.mname);
+       strcat(temp, "!");
+       strcpy(byeMessage.cvalue, temp);
+   }
 
    for(int connection : connections)
    {
       if(connection != 0)
       {
          write(connection, (char *) &outmessage, sizeof(outmessage));
-         // if(strcmp(outmessage.cvalue, "bye") == 0){
-         //    write(connection, (char *) &byeMessage, sizeof(message));
-         // }
+         if(strcmp(outmessage.cvalue, "bye") == 0){
+             write(connection, (char *) &byeMessage, sizeof(byeMessage));
+         }
       }
    }
 }
@@ -59,16 +58,42 @@ void* clientThread(void* arg)
    struct threadData *myData;
    myData = (struct threadData *) arg;
    message clientmessage;
+   message servermessage;
    pid[pthread_self()] = myData -> index;
+   bool firsttime = true;
+
+   strcpy(servermessage.mname, "Server");
 
    for(;;)
    {
       read(connections[pid[pthread_self()]], (char*)&clientmessage, sizeof(message));
-         
-      postMessage(clientmessage);
+
+      if(firsttime)
+      {
+         firsttime = false;
+         char intro[56] = "Welcome ";
+         strcat(intro, clientmessage.mname);
+         strcat(intro, "!");
+         strcpy(servermessage.cvalue, intro);
+         postMessage(servermessage);
+      }
+
+      if(strcmp(clientmessage.cvalue, "change name") != 0)
+      {
+         postMessage(clientmessage);
+      }
+      else
+      {
+         char temp[56] = "User ";
+         strcat(temp, clientmessage.mname);
+         strcat(temp, " has changed their name");
+         strcpy(servermessage.cvalue, temp);
+         postMessage(servermessage);
+      }
 
       if(strcmp(clientmessage.cvalue, "bye") == 0)
       {
+         strcpy(clientmessage.cvalue, "done");          // stop infinite loop
          close(connections[pid[pthread_self()]]);
          cout << "Removed client thread for connection: " << connections[pid[pthread_self()]] << endl;
          connections[pid[pthread_self()]] = 0;
@@ -136,7 +161,7 @@ int main(int argc, char** argv )
    // returns, you'd fork off a process to handle that request, or
    // create a thread to do the same, passing the returned value as
    // a parameter for read( ) and write( ) to use -
-   // that is, accept( ) returns a new descriptor - 
+   // that is, accept( ) returns a new descriptor -
    // you actually talk on a different socket in the child.
    // The main program would then loop around, and wait at accept( )
    // for another request for a connection, then hand that new
@@ -183,5 +208,3 @@ int main(int argc, char** argv )
    return 0;
 
 } // main( )
-
-
