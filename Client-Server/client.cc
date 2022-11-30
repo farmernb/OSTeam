@@ -124,14 +124,21 @@ int main(int argc, char** argv)
       memcpy(mymessage.mname, name, sizeof(mymessage.mname));
       cin.getline(chat, 55);
       strcpy(mymessage.cvalue, chat);
-        
+
       write(sockdesc, (char*)&mymessage, sizeof(message));
-      
-      
+
       if(strcmp(chat, "bye") == 0)
       {
          break;
       }
+
+      if(strcmp(chat, "change name") == 0)
+      {
+         cout << "Enter new chat name: " << endl;
+         cin.getline(name, 20);
+         memcpy(mymessage.mname, name, sizeof(mymessage.mname));
+      }
+
    }
       // Close the socket
       pthread_join(ptid, NULL);
@@ -139,4 +146,3 @@ int main(int argc, char** argv)
    return 0;
 
 }
-
